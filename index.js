@@ -1,77 +1,87 @@
 const redux = require("redux");
+const axios = require("axios");
+const logger = require('redux-logger');
+const promise = require('redux-promise-middleware');
+const applyMiddleware = redux.applyMiddleware;
+const thunkMiddleware = require("redux-thunk").default;
+
+
 const createStore = redux.createStore;
-const combineReducers = redux.combineReducers;
 
+const initialState = {
+  loading: false,
+  users: [],
+  error: "",
+};
 
-const BUY_CAKE = "BUY_CAKE";
-const BUY_ICECREAM = "BUY_ICECREAM";
+const FETCH_USERS_REQUEST = "FETCH_USERS_REQUEST";
+const FETCH_USERS_SUCCESS = "FETCH_USERS_SUCCESS";
+const FETCH_USERS_FAILURE = "FETCH_USERS_FAILURE";
 
-// Action creator function
-
-const buyCake = () => {
+// Action Creators
+const fetchUsersRequest = () => {
   return {
-    type: BUY_CAKE,
-    info: "First Redux action",
+    type: FETCH_USERS_REQUEST,
   };
 };
 
-const buyIceCream = () => {
+const fetchUsersSuccess = (users) => {
   return {
-    type: BUY_ICECREAM,
-    info: "Second Redux action",
+    type: FETCH_USERS_SUCCESS,
+    payload: users,
   };
 };
 
-const cakeState = {
-  numOfCakes: 10,
+const fetchUsersFailure = (error) => {
+  return {
+    type: FETCH_USERS_FAILURE,
+    payload: error,
+  };
 };
 
-const iceCreamState = {
-  numOfIceCream: 10,
-};
-
-const cakeReducer = (state = cakeState, action) => {
+const reducer = (state = initialState, action) => {
   switch (action.type) {
-    case "BUY_CAKE":
+    case FETCH_USERS_REQUEST:
       return {
         ...state,
-        numOfCakes: state.numOfCakes - 1,
+        loading: true,
       };
-
+    case FETCH_USERS_SUCCESS:
+      return {
+        loading: false,
+        users: action.payload, 
+        error: "",
+      };
+    case FETCH_USERS_FAILURE:
+      return {
+        loading: false,
+        users: [],
+        error: action.payload,
+      };
     default:
       return state;
   }
 };
 
-const iceCreamReducer = (state = iceCreamState, action) => {
-  switch (action.type) {
-    case "BUY_ICECREAM":
-      return {
-        ...state,
-        numOfIceCream: state.numOfIceCream - 1,
-      };
-    default: return state;
-  }
-};  
+const fetchUsers = () => {
+  return function (dispatch) { 
+    dispatch(fetchUsersRequest());
+    axios
+      .get("https://jsonplaceholder.typicode.com/users")
+      .then((response) => {
+        const users = response.data.map((user) => user.name);
+        dispatch(fetchUsersSuccess(users));
+      })
+      .catch((error) => {
+        dispatch(fetchUsersFailure(error.message));
+      });
+  };
+};
 
-const rootReducers = combineReducers({
-    iceCream : iceCreamReducer,
-    cake : cakeReducer
-});
-
-const store = createStore(rootReducers);
-
-console.log("Initial State:", store.getState());
-const unsubscribe = store.subscribe(() =>
-  console.log("Updated state:", store.getState())
+const store = createStore(
+  reducer,
+  applyMiddleware(thunkMiddleware,logger.default)
 );
 
-store.dispatch(buyCake());
-store.dispatch(buyCake());
-store.dispatch(buyIceCream());
-store.dispatch(buyCake());
-store.dispatch(buyIceCream());
-store.dispatch(buyIceCream());
-store.dispatch(buyCake());
-
-unsubscribe();
+store.subscribe(() => console.log("state", store.getState()));
+store.dispatch(fetchUsers());
